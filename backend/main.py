@@ -4,17 +4,20 @@ from models import User, Movie, Comment
 
 # type of request: get(access), post (create), patch(update) and delete
 
+#endpoint to see all movies of database
 @app.route("/movies_list", methods=["GET"])
 def movies_list():
     # get all the different movies from the database
     movies=Movie.query.all()
     # we must to return a JSON data, so we have to convert the python object
+    #map function will apply lambda for each row in 'movies'
     json_movies=list(map(lambda x: x.to_json(), movies))
     return  jsonify({"movies":json_movies})
 
-# getting the data associated and submit JSON data
+# enpoint to add a new movie in database
 @app.route("/add_movie", methods=["POST"])
 def add_movie():
+    #we get information from JSON and keep it in a variable
     title=request.json.get("title")
     year=request.json.get("year")
     director=request.json.get("director")
@@ -25,9 +28,9 @@ def add_movie():
             jsonify({"message":"You must include all information"}), 400,
        ) 
 
-    # construct a new Contact object
+    # construct a new Movie object
     new_movie = Movie(title=title, year=year, director=director)
-    # and add to my database
+    # and add to the database
     try:
         db.session.add(new_movie)
         db.session.commit()
@@ -36,6 +39,7 @@ def add_movie():
     
     return jsonify({"message": "Movie added!"}), 201
 
+#endpoint to 
 @app.route("/update_movie/<int:movie_id>", methods=["PATCH"])
 def update_movie(movie_id):
     # get the contact from the database
@@ -111,16 +115,24 @@ def update_username(user_id):
     
     return jsonify({"message": "User updated"}),200
 
-@app.route("/delete_user/<int:user_id>", methods=["DELETE"])
-def delete_user(user_id):
+@app.route("/delete_user/<int:id>/<int:user_id_who_want_delete>", methods=["DELETE"])
+def delete_user(id, user_id_who_want_delete):
     # get contact from database
-    user=User.query.get(user_id)
-   
+    user=User.query.get(id)
+       
     if not user:
         return jsonify({"message": "User not found"}), 404
     
-    db.session.delete(user)
-    db.session.commit()
+    if user.id==user_id_who_want_delete or user_id_who_want_delete==0:
+        db.session.delete(user)
+    else:
+        return jsonify({"message": "You don't have permission enough to delete an user"}), 401
+
+    comments_of_this_user= Comment.query.filter_by(user_id=id).all()
+    for comment in comments_of_this_user:
+        db.session.delete(comment)
+        
+        db.session.commit()
     
     return jsonify({"message": "User deleted"}), 200
  
@@ -157,7 +169,42 @@ def add_comment(movie_id, user_id):
     
     return jsonify({"message": "Comment added!"}), 201
 
+@app.route("/update_comment/<int:id>/<int:user_id>", methods=["PATCH"])
+def update_comment(id, user_id):
+    
+    comment_to_update=Comment.query.get(id)
 
+    if not comment_to_update:
+            return jsonify({"message":"Comment not found"}), 404
+    
+    if comment_to_update.user_id==user_id:
+        data=request.json
+        comment_to_update.comment=data.get("comment", comment_to_update.comment)
+    else:
+        return jsonify({"message": "Only the user who posted this comment can update it!"}),200
+    
+    db.session.commit()
+    
+    return jsonify({"message": "Comment updated"}),200
+
+@app.route("/delete_comment/<int:id>/<int:user_id>", methods=["DELETE"])
+def delete_comment(id, user_id):
+    
+    comment_to_delete=Comment.query.get(id)
+   
+    if not comment_to_delete:
+        return jsonify({"message": "Comment not found"}), 404
+
+    if comment_to_delete.user_id==user_id:
+        data=request.json
+        comment_to_delete.comment=data.get("comment", comment_to_delete.comment)
+    else:
+        return jsonify({"message": "Only the user who posted this comment can delete it!"}),401
+    
+    db.session.delete(comment_to_delete)
+    db.session.commit()
+    
+    return jsonify({"message": "Comment deleted"}), 200
 
         
 if __name__=="__main__":
